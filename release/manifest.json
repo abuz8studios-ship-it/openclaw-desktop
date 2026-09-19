@@ -1,0 +1,38 @@
+{
+  "product": "OpenClaw Desktop — OPC-1",
+  "version": "1.2.2",
+  "released": "2026-09-18",
+  "platform": "windows-x64",
+  "upstream": { "project": "openclaw/openclaw", "version": "2026.9.2", "license": "MIT" },
+  "repository": "https://github.com/abuz8studios-ship-it/openclaw-desktop",
+  "releaseTag": "zait-opc-1-v1.2.2",
+  "note": "Binaries are GitHub Release assets, never Git objects. Verify every download against the sha256 below.",
+  "assets": [
+    {
+      "name": "OpenClaw-Desktop-OPC-1-Setup-1.2.2.exe",
+      "kind": "installer",
+      "bytes": 739173014,
+      "sha256": "26101446358381c54efc7eed58130fd22aab185fb58bdd1692c7a67bbc548dca",
+      "contains": "app + Vulkan/CPU + CUDA engines"
+    },
+    {
+      "name": "Zait-OPC-1-Portable-1.2.2.exe",
+      "kind": "portable",
+      "bytes": 180797564,
+      "sha256": "91b8dc21f994c9655cbde02e79b6ca9c73ec70ade989accfd3e98d1919d72322",
+      "contains": "one-file self-extracting app; ~90s first launch"
+    },
+    {
+      "name": "abuz8-voice-pack-1.2.0.zip",
+      "kind": "voice-pack",
+      "bytes": 54825952,
+      "sha256": "349806dec6a755bf864e42a41457ddd30e2beaf8bc272c7e2739e87ec0724761",
+      "contains": "offline voice bundle for the panel voice lane",
+      "note": "carried unchanged from 1.2.0"
+    }
+  ],
+  "acceptance": "release/SMOKE_RECEIPT-1.2.2.json",
+  "changes": "release/PACK_RECEIPT-1.2.2.json",
+  "sourceOfTruth": "desktop/ in this repo is the overlay source as shipped inside the 1.2.2 binaries above",
+  "signing": { "signed": false, "note": "unsigned build; Windows SmartScreen prompts More info -> Run anyway" }
+}

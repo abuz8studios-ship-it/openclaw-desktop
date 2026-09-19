@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zait — Local Models</title>
+<style>
+  :root { --bg:#0E1B2E; --bg2:#16263f; --gold:#C8A55C; --gold2:#8C6B2F; --txt:#EDE6D6; --mut:#9fb0bd; --ok:#4ade80; --bad:#f87171; --card:#1a2c47; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font-family:"DM Sans",system-ui,sans-serif; }
+  header { padding:18px 22px; border-bottom:1px solid var(--gold2); display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-family:"Playfair Display",serif; color:var(--gold); margin:0; font-size:1.4rem; }
+  header p { margin:0; color:var(--mut); font-size:.85rem; }
+  .wrap { padding:18px 22px 40px; max-width:1180px; margin:0 auto; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid #2b4265; border-radius:10px; padding:14px 15px; }
+  .card.fixed { border-color:var(--gold2); }
+  .card h3 { margin:0 0 4px; font-size:1rem; }
+  .meta { color:var(--mut); font-size:.8rem; margin:2px 0; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:baseline; }
+  .up { background:var(--ok); } .down { background:var(--bad); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+  button, select, input { background:#0d1828; color:var(--txt); border:1px solid #33507e; border-radius:6px; padding:7px 12px; font:inherit; font-size:.85rem; cursor:pointer; }
+  button:hover { border-color:var(--gold); }
+  button.primary { background:var(--gold); color:#101418; border-color:var(--gold); font-weight:700; }
+  button.danger { border-color:#7f2d2d; }
+  .badge { font-size:.72rem; border:1px solid var(--gold2); color:var(--gold); border-radius:20px; padding:1px 9px; margin-left:6px; }
+  .roles { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:18px 0; }
+  .models-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+  .models-table th, .models-table td { border-bottom:1px solid #2b4265; padding:7px 6px; text-align:left; vertical-align:top; }
+  .models-table th { color:var(--gold); font-weight:700; }
+  .panel { background:var(--bg2); border:1px solid #2b4265; border-radius:10px; padding:14px 15px; margin-top:16px; }
+  .panel h2 { margin:0 0 8px; font-size:1rem; color:var(--gold); }
+  pre { background:#0a1322; border:1px solid #22385c; border-radius:8px; padding:12px; max-height:300px; overflow:auto; font-size:.78rem; white-space:pre-wrap; }
+  #status { color:var(--mut); font-size:.85rem; }
+  a { color:var(--gold); }
+</style>
+</head>
+<body>
+<header>
+  <h1>◈ Zait — Local Models</h1>
+  <p>Every GGUF on this machine. Start/stop headless, pick the brain per role. No terminal, no browser — all inside OPC-1.</p>
+</header>
+<div class="wrap">
+  <section id="onboarding" class="panel" style="border-color:var(--gold);display:none">
+    <h2>Welcome to Zait OPC-1</h2>
+    <p class="meta">First time? Choose the computer you have. Zait will set the safe settings, then guide you to download your first private local brain. Nothing is sent to us.</p>
+    <div class="row">
+      <button id="bGuideSmall" class="primary">Small / older computer</button>
+      <button id="bGuideFast">Gaming PC / strong computer</button>
+      <button id="bGuideFinish">I am ready to open Zait</button>
+    </div>
+    <p class="meta" id="guideStatus">Step 1 of 3: pick the lane that matches this computer.</p>
+  </section>
+  <div id="status">loading…</div>
+  <div class="roles" id="roles"></div>
+  <h2 style="color:var(--gold)">Models on disk</h2>
+  <div class="grid" id="grid"></div>
+  <div class="panel">
+    <h2>Model folders</h2>
+    <div class="meta" id="foldersStatus">…</div>
+    <div class="row" id="folderRows"></div>
+    <div class="row">
+      <input id="folderInput" placeholder="add a folder, e.g. D:\my-models" style="min-width:340px">
+      <button id="bFolderAdd" class="primary">Add folder</button>
+    </div>
+    <p class="meta">The default cache lives under your OPC-1 profile folder. Add any folder that holds GGUF models — it appears in the catalog immediately. Ahmad's E:\ABU\MODELS is used only when it exists; nothing here requires it.</p>
+  </div>
+  <div class="panel">
+    <h2>Low-RAM device (4 GB / no GPU — Surface Pro 3 class)</h2>
+    <div class="row">
+      <label style="font-size:.85rem"><input type="checkbox" id="lowRam" style="width:auto"> Low-RAM mode — every Start runs capped: ctx 2048 · 1 slot · 4 threads · no warmup</label>
+    </div>
+    <div class="row">
+      <button id="bTinySmol" class="primary">Get SmolLM2-135M (105 MB — runs anywhere)</button>
+      <button id="bTinyQwen">Get Qwen3-0.6B (484 MB — best tiny brain)</button>
+    </div>
+    <p class="meta">Weak-device rule: 0.5–1 B models only. Downloads land in "Models on disk" above; Start them with Low-RAM mode on. Progress shows in the Hugging Face download list below.</p>
+  </div>
+  <div class="panel">
+    <h2>Fleet (GPU0 presets)</h2>
+    <div class="meta" id="vramOut">vram: …</div>
+    <div class="row">
+      <button id="bFleetMin" class="primary">min-chat (4 smallest)</button>
+      <button id="bFleetMax">max-chat (fill 85%)</button>
+      <button id="bFleetOne">one-big</button>
+      <button id="bFleetOff" class="danger">off (fleet only)</button>
+    </div>
+    <p class="meta">Presets start/stop switchable chat models on GPU0 only, capped at 85% VRAM. Thinker / vision / embed / voice are never touched. The last fleet result lands in the log area below.</p>
+  </div>
+  <div class="panel">
+    <h2>Zait Collective Brain</h2>
+    <div class="row">
+      <select id="collectiveMode">
+        <option value="collective">collective</option>
+        <option value="council">council</option>
+        <option value="debate">debate</option>
+        <option value="swarm">swarm</option>
+        <option value="specialist-fanout">specialist-fanout</option>
+      </select>
+      <button id="bCollective" class="primary">Build collective brain</button>
+      <button id="bBenchmark">Benchmark model catalog</button>
+      <button id="bHF">Add Hugging Face defaults</button>
+    </div>
+    <p class="meta" id="collectiveStatus">Zait is the only agent. Cloud/local models are worker brains under him.</p>
+    <pre id="benchOut">benchmark output appears here…</pre>
+  </div>
+  <div class="panel">
+    <h2>Cloud / Tool Brains</h2>
+    <div class="row">
+      <input id="providerKey" placeholder="provider key: xai, google, higgsfield, unity">
+      <input id="providerBase" placeholder="base URL">
+      <input id="providerModel" placeholder="model id">
+      <button id="bProvider" class="primary">Add provider model</button>
+    </div>
+    <p class="meta">Keys stay in config/env. This only creates the pluggable provider/model slot and allowlist entry.</p>
+    <div id="providerRows"></div>
+  </div>
+  <div class="panel">
+    <h2>Gateway</h2>
+    <div class="row">
+      <button id="bRestart">Restart gateway (apply model changes)</button>
+      <button id="bDiscover">Rescan brains (local + cloud)</button>
+      <button id="bRefresh">Refresh</button>
+    </div>
+    <p class="meta">After switching a primary, hit <b>Restart gateway</b> so Zait picks it up immediately.</p>
+  </div>
+  <div class="panel">
+    <h2>Studio (native image + video — ComfyUI :8188)</h2>
+    <div class="meta" id="studioStatus">…</div>
+    <div class="row">
+      <button id="bStudioFree">Free GPU for Studio (park eyes+voice)</button>
+      <button id="bStudioDeep">Deep free (+thinker, for video)</button>
+      <button id="bStudioBack">Bring everybody back</button>
+    </div>
+    <p class="meta">Big image/video models need gigabytes of GPU room. Free parks the GPU0 residents so ComfyUI can load; Bring-back restores them. No terminal, no manual killing (the body would just respawn them).</p>
+  </div>
+  <div class="panel">
+    <h2>App Update + Rollback</h2>
+    <div class="row">
+      <select id="updateChannel">
+        <option value="stable">stable</option>
+        <option value="extended-stable">extended-stable</option>
+        <option value="beta">beta</option>
+        <option value="dev">dev</option>
+      </select>
+      <button id="bSnapshot" class="primary">Create rollback point</button>
+      <button id="bApplyUpdate">Apply update</button>
+      <button id="bDryUpdate">Dry run</button>
+      <button id="bRollback" class="danger">Rollback latest</button>
+      <button id="bUpdateState">Refresh update state</button>
+    </div>
+    <p class="meta">Rollback covers live config plus OPC-1 app control files. Apply/publish still requires owner-approved release flow.</p>
+    <pre id="updateOut">update state appears here…</pre>
+  </div>
+  <div class="panel">
+    <h2>Media Health</h2>
+    <div class="row" id="mediaChips"><span class="meta">probing…</span></div>
+    <p class="meta">Loopback probes: ComfyUI :8188, vision :8012, voice :8094, hands :8790, ffmpeg, GPU (nvidia-smi). GPU failure is shown as an error, never as zero VRAM.</p>
+  </div>
+  <div class="panel">
+    <h2>Voice — mouth &amp; ears (Kokoro TTS + Parakeet ASR)</h2>
+    <div class="meta" id="voiceStatus">probing…</div>
+    <div class="row">
+      <button id="bVoiceAll" class="primary">Install EVERYTHING (pack + weights)</button>
+      <button id="bVoicePack">Install voice pack (app, ~55 MB)</button>
+      <button id="bVoiceKokoro">Install TTS weights (Kokoro, ~350 MB)</button>
+      <button id="bVoiceParakeet">Install ASR weights (Parakeet, ~670 MB)</button>
+      <button id="bVoiceStart">Start voice</button>
+    </div>
+    <div id="voiceDownloads" style="margin-top:10px"></div>
+    <p class="meta">One click = talk to Zait and hear the answer, 100% free, unlimited, fully local. The voice pack is the engine (no Python needed); the weights are the voices + ears, each under 1 GB from public Hugging Face repos. Everything resumes if interrupted.</p>
+  </div>
+  <div class="panel">
+    <h2>Hugging Face — find &amp; download GGUFs</h2>
+    <div class="row">
+      <input id="hfQuery" placeholder="search, e.g. SmolLM2 135M gguf" style="min-width:300px">
+      <button id="bHfSearch" class="primary">Search</button>
+    </div>
+    <div id="hfResults"></div>
+    <div id="hfFiles"></div>
+    <div id="hfDownloads" style="margin-top:10px"></div>
+    <p class="meta">Downloads land in the models root (per-repo folder) and appear in "Models on disk" above. Interrupted downloads resume. Public repos need no account; set HUGGINGFACE_API_KEY for gated ones.</p>
+  </div>
+  <div class="panel">
+    <h2>Benchmark RUN</h2>
+    <div class="row">
+      <select id="benchAlias"></select>
+      <button id="bBenchRun" class="primary">Run benchmark (128 tokens)</button>
+    </div>
+    <p class="meta">Measures real tok/s against the RUNNING model and appends the run to model_benchmarks.json. The model must be started first.</p>
+    <pre id="benchRunOut">benchmark result appears here…</pre>
+  </div>
+  <div class="panel">
+    <h2>Logs (in-app — no terminal needed)</h2>
+    <div class="row"><select id="logSel"></select><button id="bLog">Tail log</button></div>
+    <pre id="logOut">pick a log…</pre>
+  </div>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+let S = null;
+async function api(p, body) {
+  const r = await fetch(p, body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {});
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || ('HTTP '+r.status));
+  return j;
+}
+function roleRow(label, role, current) {
+  const candidates = role === 'image'
+    ? S.models.filter(m => m.kind === 'vision' || m.visionCapable)
+    : S.models.filter(m => m.kind !== 'embed');
+  const opts = candidates.map(m =>
+    `<option value="${m.providerKey}/${m.alias}" ${current===m.providerKey+'/'+m.alias?'selected':''}>${m.alias} (:${m.port})${m.running?' ●':''}</option>`).join('');
+  return `<div class="card"><h3>${label}</h3><div class="meta">now: <b>${current||'—'}</b></div>
+    <div class="row"><select data-role="${role}">${opts}</select><button data-set="${role}" class="primary">Set</button></div></div>`;
+}
+function render() {
+  $('#onboarding').style.display = S.onboardingComplete ? 'none' : 'block';
+  const guideReady = !!S.primary;
+  $('#bGuideFinish').disabled = !guideReady;
+  if (!S.onboardingComplete && guideReady) $('#guideStatus').textContent = 'Step 3 of 3: Zait has a chief brain. Open Zait when you are ready.';
+  $('#status').textContent = `scanned ${S.scannedAt} · ${S.models.filter(m=>m.running).length}/${S.models.length} running · brains registry ${S.brainsScannedAt||'n/a'}` + (S.cfgError?` · CONFIG ERROR: ${S.cfgError}`:'');
+  // Model folders: default cache under the user profile + user picks + optional Ahmad mirror.
+  $('#foldersStatus').textContent = `default cache: ${S.modelsRoot}` + (S.eModelsCompat ? ' · Ahmad mirror E:\\ABU\\MODELS\\llm: present (optional)' : ' · E:\\ABU\\MODELS: not used') + (S.engine ? (S.engine.present ? ` · engine: bundled ✓` : ` · ENGINE MISSING: ${S.engine.path} — reinstall/repair`) : '');
+  $('#folderRows').innerHTML = (S.modelFolders||[]).map(f =>
+    `<span class="badge" style="margin:0 6px 0 0">${f}</span><button data-rmfolder="${f}" class="danger" style="padding:2px 8px;font-size:.75rem">remove</button>`).join('') || '<span class="meta">no extra folders — using the default cache only</span>';
+  document.querySelectorAll('[data-rmfolder]').forEach(b=>b.onclick=async()=>{ try{ await api('/api/folders/remove',{folder:b.dataset.rmfolder}); await load(); }catch(e){ alert(e.message); } });
+  const st = S.studio||{};
+  $('#lowRam').checked = !!S.lowRam;
+  $('#studioStatus').textContent = `ComfyUI ${st.comfy?'● live':'○ down'} · eyes ${st.vision?'●':'○'} · voice ${st.voice?'●':'○'} · thinker ${st.thinker?'●':'○'}`;
+  const op = (S.operator&&S.operator.primary)||'', au = (S.auditor&&S.auditor.primary)||'';
+  const im = (S.imageModel&&S.imageModel.primary)||'';
+  $('#roles').innerHTML = roleRow('Chief / Zait (default)','default',S.primary) + roleRow('Operator (executor)','operator',op) + roleRow('Auditor (review)','auditor',au) + roleRow('Eyes (vision)','image',im);
+  $('#grid').innerHTML = S.models.map(m => `
+    <div class="card${m.fixed?' fixed':''}">
+      <h3><span class="dot ${m.running?'up':'down'}"></span>${m.alias}${m.fixed?`<span class="badge">${m.fixed}</span>`:''}${m.kind==='vision'?'<span class="badge">vision</span>':''}${m.visionCapable?'<span class="badge">vision-ready</span>':''}${m.kind==='embed'?'<span class="badge">embed</span>':''}</h3>
+      <div class="meta">${m.file}</div>
+      <div class="meta">${m.gb} GB · port :${m.port}${m.managed?' · managed by app':''}</div>
+      <div class="meta">${m.running?('live: '+(m.runningIds.join(', ')||'warming up…')):'stopped'}</div>
+      <div class="row">
+        ${m.running?`<button data-stop="${m.port}" class="danger">Stop</button>`:`<button data-start="${m.alias}" class="primary">Start</button>`}
+        <button data-bind="${m.alias}">Bind to config</button>
+        ${m.kind!=='embed'?`<button data-use="${m.providerKey}/${m.alias}">Use as chief</button>`:''}
+      </div>
+    </div>`).join('');
+  $('#collectiveStatus').textContent = S.collectiveBrain
+    ? `mode ${S.collectiveBrain.mode} · ${S.collectiveBrain.selectedModels.length} worker models · manager ${S.collectiveBrain.manager}`
+    : 'Zait is the only agent. Cloud/local models are worker brains under him.';
+  const providerModels = (S.providerModels || []).slice(0, 36);
+  $('#providerRows').innerHTML = `<table class="models-table"><thead><tr><th>Ref</th><th>Best use</th><th>Score</th><th>Context</th></tr></thead><tbody>${
+    providerModels.map(m => `<tr><td>${m.ref}</td><td>${(m.bestUse||[]).join(', ')}</td><td>${m.zaitScore}</td><td>${m.contextWindow||'?'}</td></tr>`).join('')
+  }</tbody></table>`;
+  document.querySelectorAll('[data-start]').forEach(b=>b.onclick=async()=>{ try{ await api('/api/start',{alias:b.dataset.start,lowRam:$('#lowRam').checked}); await load(); }catch(e){ alert(e.message); } });
+  document.querySelectorAll('[data-stop]').forEach(b=>b.onclick=async()=>{ try{ await api('/api/stop',{port:Number(b.dataset.stop)}); await load(); }catch(e){ alert(e.message); } });
+  document.querySelectorAll('[data-bind]').forEach(b=>b.onclick=async()=>{ try{ const m=S.models.find(x=>x.alias===b.dataset.bind); const k=await api('/api/ensure',{alias:m.alias,port:m.port,kind:m.kind}); alert('bound as '+k.key+' — restart gateway to apply'); await load(); }catch(e){ alert(e.message); } });
+  document.querySelectorAll('[data-use]').forEach(b=>b.onclick=async()=>{ try{ await api('/api/primary',{role:'default',ref:b.dataset.use}); await api('/api/restart-gateway',{}); await load(); }catch(e){ alert(e.message); } });
+  document.querySelectorAll('[data-set]').forEach(b=>b.onclick=async()=>{ try{ const sel=document.querySelector(`select[data-role="${b.dataset.set}"]`); await api('/api/primary',{role:b.dataset.set,ref:sel.value}); await api('/api/restart-gateway',{}); await load(); }catch(e){ alert(e.message); } });
+}
+async function load() { S = await api('/api/state'); render(); }
+async function loadLogs(){ const l = await api('/api/logs'); $('#logSel').innerHTML = l.logs.map(f=>`<option>${f}</option>`).join(''); }
+async function loadVram(){ try{ const v=await api('/api/vram'); $('#vramOut').textContent = v.ok ? v.gpus.map(g=>`GPU${g.index}: ${g.used}/${g.total} MiB used · ${g.free} MiB free`).join('   ·   ') : ('vram: '+(v.error||'unavailable')); }catch(e){ $('#vramOut').textContent='vram: '+e.message; } }
+$('#bRefresh').onclick = load;
+$('#bGuideSmall').onclick = guard(async()=>{
+  await api('/api/prefs',{lowRam:true});
+  $('#lowRam').checked=true;
+  await api('/api/hf/download',{repo:'QuantFactory/SmolLM2-135M-Instruct-GGUF',file:'SmolLM2-135M-Instruct.Q4_K_M.gguf'});
+  if(!hfPoll) hfPoll=setInterval(loadHfDownloads,1500);
+  $('#guideStatus').textContent='Step 2 of 3: downloading the small private brain (about 105 MB). When it finishes, click Start on its card, then Use as chief. The final button unlocks only after that.';
+  loadHfDownloads();
+}, '#guideStatus');
+$('#bGuideFast').onclick = guard(async()=>{
+  await api('/api/prefs',{lowRam:false});
+  $('#lowRam').checked=false;
+  await api('/api/hf/download',{repo:'QuantFactory/Qwen3-0.6B-GGUF',file:'Qwen3-0.6B.Q4_K_M.gguf'});
+  if(!hfPoll) hfPoll=setInterval(loadHfDownloads,1500);
+  $('#guideStatus').textContent='Step 2 of 3: downloading the recommended starter brain (about 484 MB). When it finishes, click Start on its card, then Use as chief. The final button unlocks only after that.';
+  loadHfDownloads();
+}, '#guideStatus');
+$('#bGuideFinish').onclick = guard(async()=>{
+  await api('/api/onboarding/complete',{});
+  $('#guideStatus').textContent='Opening Zait…';
+}, '#guideStatus');
+$('#bFolderAdd').onclick = guard(async()=>{ await api('/api/folders',{folder:$('#folderInput').value}); $('#folderInput').value=''; await load(); }, '#foldersStatus');
+const guard = (fn, out = '#benchOut') => async()=>{ try { await fn(); } catch(e) { $(out).textContent = 'ERROR: ' + e.message; alert(e.message); } };
+$('#bRestart').onclick = guard(async()=>{ await api('/api/restart-gateway',{}); alert('gateway restarting…'); });
+$('#bStudioFree').onclick = guard(async()=>{ await api('/api/studio/free',{deep:false}); alert('parking eyes+voice… refresh in ~20s'); });
+$('#bStudioDeep').onclick = guard(async()=>{ if(confirm('Deep free also parks the thinker (reasoning pauses). Continue?')){ await api('/api/studio/free',{deep:true}); alert('deep freeing… refresh in ~30s'); } });
+$('#bStudioBack').onclick = guard(async()=>{ await api('/api/studio/restore',{}); alert('restoring everybody… refresh in ~60s'); });
+$('#bDiscover').onclick = guard(async()=>{ await api('/api/discover',{}); alert('rescanning… refresh in ~20s'); });
+const fleet = (preset) => guard(async()=>{ $('#logOut').textContent=`fleet ${preset} running… models load sequentially, this can take several minutes`; const r=await api('/api/fleet',{preset}); $('#logOut').textContent=JSON.stringify(r,null,2); await load(); await loadVram(); }, '#logOut');
+$('#bFleetMin').onclick = fleet('min-chat');
+$('#bFleetMax').onclick = fleet('max-chat');
+$('#bFleetOne').onclick = fleet('one-big');
+$('#bFleetOff').onclick = fleet('off');
+$('#bBenchmark').onclick = guard(async()=>{ const r=await api('/api/benchmark'); $('#benchOut').textContent=JSON.stringify({count:r.count, byRole:r.byRole, top:r.models.slice(0,12).map(m=>({ref:m.ref,bestUse:m.bestUse,score:m.zaitScore}))}, null, 2); await load(); });
+$('#bCollective').onclick = guard(async()=>{ const r=await api('/api/collective',{mode:$('#collectiveMode').value}); $('#benchOut').textContent=JSON.stringify(r,null,2); await load(); });
+$('#bHF').onclick = guard(async()=>{ const snap=await api('/api/update/snapshot',{label:'before-huggingface-defaults'}); const r=await api('/api/huggingface/defaults',{}); $('#benchOut').textContent=JSON.stringify({snapshot:snap.slot, huggingface:r},null,2); await load(); });
+$('#bProvider').onclick = guard(async()=>{ const snap=await api('/api/update/snapshot',{label:'before-provider-add'}); const r=await api('/api/provider',{providerKey:$('#providerKey').value,baseUrl:$('#providerBase').value,modelId:$('#providerModel').value}); $('#benchOut').textContent=JSON.stringify({snapshot:snap.slot, provider:r},null,2); await load(); });
+async function updateState(){ const r=await api('/api/update/state'); $('#updateOut').textContent=JSON.stringify(r,null,2); }
+$('#bSnapshot').onclick = guard(async()=>{ const r=await api('/api/update/snapshot',{label:'manual-from-app'}); $('#updateOut').textContent=JSON.stringify(r,null,2); }, '#updateOut');
+$('#bApplyUpdate').onclick = guard(async()=>{ if(confirm('Create rollback point, run app update, and restart gateway when complete?')){ const r=await api('/api/update/apply',{channel:$('#updateChannel').value,restart:true}); $('#updateOut').textContent=JSON.stringify(r,null,2); } }, '#updateOut');
+$('#bDryUpdate').onclick = guard(async()=>{ const r=await api('/api/update/apply',{channel:$('#updateChannel').value,dryRun:true,restart:false}); $('#updateOut').textContent=JSON.stringify(r,null,2); }, '#updateOut');
+$('#bRollback').onclick = guard(async()=>{ if(confirm('Rollback latest OPC-1 app/config control snapshot and restart gateway after?')){ const r=await api('/api/update/rollback',{}); $('#updateOut').textContent=JSON.stringify(r,null,2); await api('/api/restart-gateway',{}); } }, '#updateOut');
+$('#bUpdateState').onclick = updateState;
+$('#bLog').onclick = async()=>{ const f=$('#logSel').value; const r=await fetch('/api/log?file='+encodeURIComponent(f)+'&n=80'); const j=await r.json(); $('#logOut').textContent=j.tail||j.error; };
+// ── Media health chips ──────────────────────────────────────────────────────
+async function loadMedia(){
+  try{
+    const h=await api('/api/health/media');
+    // 2026-09-11: when a probe is down, say WHY (from home\sidecars.json,
+    // written by the body) instead of a bare red dot — voice especially:
+    // "not installed (no bundle, no Python 3.11)" is an honest answer.
+    const why=(name,probe)=>{
+      if(probe&&probe.ok) return null;
+      const sc=(S&&S.sidecars&&S.sidecars[name])||null;
+      if(sc&&sc.reason) return sc.state+': '+sc.reason;
+      return probe&&probe.status;
+    };
+    const chip=(label,ok,extra)=>`<span class="badge" style="border-color:${ok?'var(--ok)':'var(--bad)'};color:${ok?'var(--ok)':'var(--bad)'};margin:0 6px 0 0">${label}: ${ok?'● ok':'○ '+(extra||'down')}</span>`;
+    $('#mediaChips').innerHTML =
+      chip('comfy',h.comfy&&h.comfy.ok,why('comfy',h.comfy)) +
+      chip('vision',h.vision&&h.vision.ok,why('vision',h.vision)) +
+      chip('voice',h.voice&&h.voice.ok,why('voice',h.voice)) +
+      chip('hands',h.hands&&h.hands.ok,why('desktop',h.hands)) +
+      chip('ffmpeg',h.ffmpeg&&h.ffmpeg.found,h.ffmpeg&&(h.ffmpeg.version?('v '+h.ffmpeg.version):(h.ffmpeg.error||'not found'))) +
+      chip('gpu',h.gpu&&h.gpu.ok,h.gpu&&(h.gpu.ok?(h.gpu.gpus.map(g=>g.used+'/'+g.total+' MiB').join(' · ')):(h.gpu.error||'unavailable')));
+  }catch(e){ $('#mediaChips').innerHTML='<span class="meta">media health error: '+e.message+'</span>'; }
+}
+// ── Hugging Face search / download ──────────────────────────────────────────
+let hfPoll=null;
+$('#bHfSearch').onclick = guard(async()=>{
+  const r=await api('/api/hf/search?q='+encodeURIComponent($('#hfQuery').value));
+  $('#hfResults').innerHTML='<table class="models-table"><thead><tr><th>Repo</th><th>Downloads</th><th></th></tr></thead><tbody>'+
+    r.results.map(m=>`<tr><td>${m.repo}</td><td>${m.downloads}</td><td><button data-hfrepo="${m.repo}">files</button></td></tr>`).join('')+'</tbody></table>';
+  document.querySelectorAll('[data-hfrepo]').forEach(b=>b.onclick=async()=>{
+    const f=await api('/api/hf/files?repo='+encodeURIComponent(b.dataset.hfrepo));
+    $('#hfFiles').innerHTML='<table class="models-table"><thead><tr><th>File</th><th>Size</th><th></th></tr></thead><tbody>'+
+      f.files.map(x=>`<tr><td>${x.file}</td><td>${x.mb?x.mb+' MB':'?'}</td><td><button data-hfdl="${f.repo}|${x.file}" class="primary">Download</button></td></tr>`).join('')+'</tbody></table>';
+    document.querySelectorAll('[data-hfdl]').forEach(b2=>b2.onclick=async()=>{
+      const [repo,file]=b2.dataset.hfdl.split('|');
+      await api('/api/hf/download',{repo,file});
+      if(!hfPoll) hfPoll=setInterval(loadHfDownloads,1500);
+      loadHfDownloads();
+    });
+  });
+}, '#hfResults');
+async function loadHfDownloads(){
+  try{
+    const d=await api('/api/hf/downloads');
+    $('#hfDownloads').innerHTML=d.downloads.map(x=>{
+      const pct=x.total?Math.round(100*x.done/x.total):0;
+      return `<div class="meta">${x.repo}/${x.file} — ${x.status}${x.error?(' ('+x.error+')'):''} · ${Math.round(x.done/1048576)}/${x.total?Math.round(x.total/1048576):'?'} MB<div style="background:#0a1322;border:1px solid #22385c;border-radius:4px;height:8px;margin-top:2px"><div style="background:var(--gold);height:100%;width:${pct}%"></div></div></div>`;
+    }).join('')||'<span class="meta">no downloads yet</span>';
+    if(d.downloads.every(x=>x.status!=='downloading')&&hfPoll){ clearInterval(hfPoll); hfPoll=null; load(); }
+  }catch(e){ $('#hfDownloads').textContent=e.message; }
+}
+// ── Voice lane ──────────────────────────────────────────────────────────────
+let voicePoll=null;
+const vchip=(label,ok,extra)=>`<span class="badge" style="border-color:${ok?'var(--ok)':'var(--bad)'};color:${ok?'var(--ok)':'var(--bad)'};margin:0 6px 0 0">${label}: ${ok?'● installed':'○ '+(extra||'missing')}</span>`;
+async function loadVoice(){
+  try{
+    const v=await api('/api/voice/state');
+    $('#voiceStatus').innerHTML =
+      vchip('voice pack',v.pack.installed,v.pack.installed?null:'not installed') +
+      vchip('kokoro tts',v.kokoro.installed,(v.kokoro.mb||0)+' MB · '+(v.kokoro.voices||0)+' voices') +
+      vchip('parakeet asr',v.parakeet.installed,(v.parakeet.mb||0)+' MB') +
+      `<span class="badge" style="border-color:${v.server.up?'var(--ok)':'var(--bad)'};color:${v.server.up?'var(--ok)':'var(--bad)'};margin:0 6px 0 0">server :${v.server.port}: ${v.server.up?'● live'+(v.server.health&&v.server.health.backend?(' · '+v.server.health.backend):''):'○ down'}</span>`;
+    $('#voiceDownloads').innerHTML=(v.downloads||[]).map(x=>{
+      const pct=x.total?Math.round(100*x.done/x.total):(x.status==='done'?100:0);
+      return `<div class="meta">${x.key} — ${x.status}${x.error?(' ('+x.error+')'):''} · ${Math.round((x.done||0)/1048576)}/${x.total?Math.round(x.total/1048576):'?'} MB<div style="background:#0a1322;border:1px solid #22385c;border-radius:4px;height:8px;margin-top:2px"><div style="background:var(--gold);height:100%;width:${pct}%"></div></div></div>`;
+    }).join('')||'';
+    if(v.busy){ if(!voicePoll) voicePoll=setInterval(loadVoice,1500); }
+    else if(voicePoll){ clearInterval(voicePoll); voicePoll=null; loadMedia(); }
+  }catch(e){ $('#voiceStatus').textContent='voice state error: '+e.message; }
+}
+const vinstall=(what)=>guard(async()=>{ await api('/api/voice/install',{what}); if(!voicePoll) voicePoll=setInterval(loadVoice,1500); loadVoice(); }, '#voiceStatus');
+$('#bVoiceAll').onclick=()=>vinstall('all')();
+$('#bVoicePack').onclick=()=>vinstall('pack')();
+$('#bVoiceKokoro').onclick=()=>vinstall('kokoro')();
+$('#bVoiceParakeet').onclick=()=>vinstall('parakeet')();
+$('#bVoiceStart').onclick=guard(async()=>{ await api('/api/voice/start',{}); setTimeout(loadVoice,3000); setTimeout(loadMedia,3000); }, '#voiceStatus');
+// ── Low-RAM device profile ──────────────────────────────────────────────────
+$('#lowRam').onchange = async()=>{ try{ await api('/api/prefs',{lowRam:$('#lowRam').checked}); }catch(e){ alert(e.message); } };
+const tinyGet=(repo,file)=>guard(async()=>{ await api('/api/hf/download',{repo,file}); if(!hfPoll) hfPoll=setInterval(loadHfDownloads,1500); loadHfDownloads(); }, '#hfDownloads');
+$('#bTinySmol').onclick = tinyGet('QuantFactory/SmolLM2-135M-Instruct-GGUF','SmolLM2-135M-Instruct.Q4_K_M.gguf');
+$('#bTinyQwen').onclick = tinyGet('QuantFactory/Qwen3-0.6B-GGUF','Qwen3-0.6B.Q4_K_M.gguf');
+// ── Benchmark RUN ───────────────────────────────────────────────────────────
+async function loadBenchAlias(){
+  if(!S) return;
+  $('#benchAlias').innerHTML=S.models.filter(m=>m.kind!=='embed').map(m=>`<option value="${m.alias}"${m.running?'':''}>${m.alias}${m.running?' ●':''}</option>`).join('');
+}
+$('#bBenchRun').onclick = guard(async()=>{
+  $('#benchRunOut').textContent='benchmark running (128-token completion)…';
+  const r=await api('/api/benchmark/run',{alias:$('#benchAlias').value});
+  $('#benchRunOut').textContent=JSON.stringify(r,null,2);
+}, '#benchRunOut');
+const _load=load;
+load = async()=>{ await _load(); loadBenchAlias(); };
+load().then(loadLogs).then(updateState).then(loadVram).then(loadMedia).then(loadHfDownloads).then(loadVoice).catch(e=>{ $('#status').textContent='panel error: '+e.message; });
+setInterval(load, 15000);
+setInterval(loadVram, 15000);
+setInterval(loadMedia, 30000);
+</script>
+</body>
+</html>

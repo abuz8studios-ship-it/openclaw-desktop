@@ -1,0 +1,23 @@
+# Binaries live in GitHub Releases, never in Git.
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.zip
+*.7z
+*.gguf
+# (vault templates are *.bin and ARE tracked - do not ignore them)
+
+# Never commit state, secrets, or machine-specific config.
+home/
+.openclaw/
+.openclaw-OPC-1/
+.env
+.env.*
+*.token
+*.key
+*.pem
+node_modules/
+dist/
+build/
+staging/
