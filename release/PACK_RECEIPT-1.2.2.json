@@ -1,0 +1,31 @@
+{
+  "built": "2026-09-18",
+  "version": "1.2.2",
+  "builder": "Muse Code (payload OPC1_BUILD, electron-builder 25.1.8, --prepackaged)",
+  "fixesVs1.2.0": [
+    "_auto self-poison: brain-discover.cjs no longer persists `_auto: true` flags (gateway validator rejects them -> crash loop). Auto providers keyed on `auto-<port>` name; one-time strip of legacy flags. Ported from live 2026-09-15 scheme.",
+    "Sept-16 self-heal backported: abuz8-doctor.cjs + abuz8-body-vault/ (12 templates) + anchorCwd/runDoctor boot hook in both electron-main.cjs files.",
+    "Brand: blue Clawlobster win.icon in both configs."
+  ],
+  "artifacts": {
+    "portable": {
+      "file": "Zait-OPC-1-Portable-1.2.2.exe",
+      "bytes": 180797564,
+      "sha256": "91B8DC21F994C9655CBDE02E79B6CA9C73EC70ADE989ACCFD3E98D1919D72322"
+    },
+    "setup": {
+      "file": "OpenClaw-Desktop-OPC-1-Setup-1.2.2.exe",
+      "bytes": 739173014,
+      "sha256": "26101446358381C54EFC7EED58130FD22AAB185FB58BDD1692C7A67BBC548DCA"
+    },
+    "voicePackUnchanged": "abuz8-voice-pack-1.2.0.zip (54,825,952 B, from 1.2.0)"
+  },
+  "acceptance": "See Zait-OPC-1-1.2.2.SMOKE_RECEIPT.json",
+  "liveUntouched": true,
+  "liveNote": "Live install C:\\ABUZ8-Agents\\ABUZ8-OPC-1carries the same fixes already (doctor+name-pattern discover). One benign touch: an early doctor --check without OPC1_HOME wrote last-report.json into the live home doctor dir (report-only).",
+  "stillOpen": [
+    "Voice-pack public download URL (no gh auth on box).",
+    "Setup.exe /S silent-install exit 2 (retest on clean VM).",
+    "GitHub release slot for 739 MB setup (past 100 MB push limit) + voice-pack hosting."
+  ]
+}

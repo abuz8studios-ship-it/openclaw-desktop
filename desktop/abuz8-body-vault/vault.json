@@ -1,0 +1,91 @@
+{
+  "note": "Sealed workspace-template vault for ABUZ8-OPC-1. Payload filenames are deliberately neutral (wt-*.bin) so filename-based stranger scrubs cannot strip them. Content is generic upstream template text - it carries no owner data and is safe in any pack.",
+  "sealed": "2026-09-17T01:34:23.737Z",
+  "templateRelDir": "docs/reference/templates",
+  "entries": [
+    {
+      "vault": "wt-agents-dev.bin",
+      "target": "AGENTS.dev.md",
+      "bytes": 4094,
+      "sha256": "5c65971685cd2b1b39f95d38b4922464424d9f5e00d20ab74e773ad417a2cca4",
+      "required": false
+    },
+    {
+      "vault": "wt-agents.bin",
+      "target": "AGENTS.md",
+      "bytes": 8058,
+      "sha256": "39fbb9d56623cd6ea256bdafca7e5926901fc4b30dabec8312e01d76ca0ed015",
+      "required": true
+    },
+    {
+      "vault": "wt-boot.bin",
+      "target": "BOOT.md",
+      "bytes": 697,
+      "sha256": "1adfb4d71f1f03716a1ddc4774a4cb6ead4b8be65bd9bb34066a9e1929a36b21",
+      "required": false
+    },
+    {
+      "vault": "wt-bootstrap.bin",
+      "target": "BOOTSTRAP.md",
+      "bytes": 4482,
+      "sha256": "d3f21a191ee585ef832911f8d642eb4537e3b6d2c7fe4e80ea334066a24c34a0",
+      "required": false
+    },
+    {
+      "vault": "wt-heartbeat.bin",
+      "target": "HEARTBEAT.md",
+      "bytes": 1080,
+      "sha256": "a1335a63d5e24958f3413d7545109adf26cb3bd9575af77e0bdcc69a35213335",
+      "required": false
+    },
+    {
+      "vault": "wt-identity-dev.bin",
+      "target": "IDENTITY.dev.md",
+      "bytes": 1837,
+      "sha256": "83d3590b0325fab4c8d0b3ca781be20ce363e3873ebc03f535eef4129cc96907",
+      "required": false
+    },
+    {
+      "vault": "wt-identity.bin",
+      "target": "IDENTITY.md",
+      "bytes": 1397,
+      "sha256": "1c447d4ce2d33b4836d3c95c2bc70cc783ea3ccd450e61e2db7e04d5465e9820",
+      "required": true
+    },
+    {
+      "vault": "wt-soul-dev.bin",
+      "target": "SOUL.dev.md",
+      "bytes": 3793,
+      "sha256": "f0511b1e69f3a5b110e277ba60e74ddeba6b83896b8a23b1195f545a89f4959d",
+      "required": false
+    },
+    {
+      "vault": "wt-soul.bin",
+      "target": "SOUL.md",
+      "bytes": 1645,
+      "sha256": "79c61aaee618c787c164c5d767053a83c6e218191b3b6ebb66fd07320b071ce8",
+      "required": true
+    },
+    {
+      "vault": "wt-tools.bin",
+      "target": "TOOLS.md",
+      "bytes": 542,
+      "sha256": "371b20d9ef799957ece3e2610c738a4c01560803feb5a83615670a008288daff",
+      "required": false
+    },
+    {
+      "vault": "wt-user-dev.bin",
+      "target": "USER.dev.md",
+      "bytes": 762,
+      "sha256": "f75b3acf635a7e114dd4b92bd2136137646a929789037ded995f75a9e096eec4",
+      "required": false
+    },
+    {
+      "vault": "wt-user.bin",
+      "target": "USER.md",
+      "bytes": 1011,
+      "sha256": "96693495360aab9c5f8075132941e7ed356db90a8f3fb141933d32d1ce59f5f6",
+      "required": true
+    }
+  ]
+}

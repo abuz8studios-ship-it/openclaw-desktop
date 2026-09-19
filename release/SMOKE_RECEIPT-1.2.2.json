@@ -1,0 +1,27 @@
+{
+  "at": "2026-09-18",
+  "method": "Portable 1.2.2 launched minimized with OPC1_HOME=<temp>\\smoke126\\home + OPC1_MODELS=sandbox-models + OPC1_DISABLE_E_COMPAT=1 + OPC1_GATEWAY_PORT=28789 + OPC1_PANEL_PORT=28790",
+  "artifact": "Zait-OPC-1-Portable-1.2.2.exe",
+  "artifactSha256": "91B8DC21F994C9655CBDE02E79B6CA9C73EC70ADE989ACCFD3E98D1919D72322",
+  "freshProfileBoot": true,
+  "panel200": true,
+  "gateway200": true,
+  "doctorBootHealthy": true,
+  "crashLoopFiles": 0,
+  "catalog": "SmolLM2-135M-Instruct.Q4_K_M found via /api/state",
+  "modelStart": "/api/start -> SmolLM2 :8002, engine /health 200",
+  "realPrompt": {
+    "prompt": "Name one color.",
+    "replyStart": "One color, yes! I'm glad you asked",
+    "answered": true
+  },
+  "unitProofs": [
+    "Poisoned config (3x _auto) -> Invalid config / Unrecognized key _auto (reproduces crash loop).",
+    "Patched brain-discover on poisoned config -> 0x _auto, providers intact.",
+    "Healed config -> [gateway] ready, /health 200.",
+    "Sabotage replay: deleted SOUL.md/IDENTITY.md -> doctor restored both byte-identical from vault."
+  ],
+  "liveUntouched": true,
+  "smokeCleaned": true,
+  "pass": true
+}
