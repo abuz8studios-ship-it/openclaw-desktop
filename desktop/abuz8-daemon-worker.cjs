@@ -4,6 +4,12 @@
 // Node IPC; no system OpenClaw install or upstream gateway process is used.
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+require('./abuz8-hidden-children.cjs');
+// Propagate console hiding to Node broker/CLI grandchildren as well.
+const hiddenPreload = '--require=' + JSON.stringify(require('node:path').join(__dirname, 'abuz8-hidden-children.cjs'));
+if (!(process.env.NODE_OPTIONS || '').includes('abuz8-hidden-children.cjs')) {
+  process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, hiddenPreload].filter(Boolean).join(' ');
+}
 
 const entry = path.join(__dirname, 'dist', 'index.js');
 
@@ -26,13 +32,18 @@ process.on('message', (message) => {
     // NOTE 2026-09-03: setting process.argv to include 'gateway' enables the memos
     // Memory Viewer, but caused gateway boot fights (EADDRINUSE loop) — reverted to
     // stable. Viewer hunt continues separately. Do NOT re-add without a clean test.
-    const port = String(process.env.OPENCLAW_GATEWAY_PORT || 5119);
+    const port = String(process.env.OPENCLAW_GATEWAY_PORT || 18789);
+    // Electron supplies a 4 GiB old-space cap; report the effective V8 limit so
+    // it can be checked independently of a configured environment string.
+    const heapLimitMiB = Math.round(require('node:v8').getHeapStatistics().heap_size_limit / 1048576);
+    console.error(`[daemon-worker] heap limit=${heapLimitMiB}MiB approach=bounded-4096-old-space`);
     const openclaw = await import(pathToFileURL(entry).href);
     send('loaded', { entry });
     await openclaw.runLegacyCliEntry([
       process.execPath,
       entry,
       'gateway',
+      'run',
       '--port',
       port,
       '--allow-unconfigured',

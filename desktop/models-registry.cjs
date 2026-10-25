@@ -9,6 +9,16 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+// Disk scan is on the panel's hot path. Keep only immutable file metadata in
+// this cache: role/port/GPU decisions stay in abuz8-registry.cjs and are
+// recomputed every scan. A changed GGUF mtime or size invalidates its entry.
+const SCAN_ERROR_CAP = 2048;
+const modelStatMemo = new Map();
+
+function scanError(errors, message) {
+  if (errors.length < SCAN_ERROR_CAP) errors.push(String(message).slice(0, 2048));
+}
+
 function expandFolder(p, opc1Root) {
   return String(p).replace(/%OPC1%/g, opc1Root);
 }
@@ -52,11 +62,11 @@ function scanModels(folders, extraFolders) {
   for (const root of roots) {
     let dirs = [];
     try { dirs = fs.readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); }
-    catch (e) { errors.push(root + ': ' + e.message); continue; }
+    catch (e) { scanError(errors, root + ': ' + e.message); continue; }
     // Flat root holding .gguf directly (no subdirs) counts too — one virtual dir.
     let flat = [];
     try { flat = fs.readdirSync(root).filter((f) => /\.gguf$/i.test(f)); } catch {}
-    const dirList = dirs.length ? dirs : (flat.length ? ['.'] : []);
+    const dirList = [...(flat.length ? ['.'] : []), ...dirs];
     for (const dir of dirList) {
       const full = dir === '.' ? root : path.join(root, dir);
       let files = [];
@@ -65,15 +75,27 @@ function scanModels(folders, extraFolders) {
       for (const f of files) {
         if (/mmproj/i.test(f)) continue;
         if (/mtp-|draft/i.test(f) && !/ABLITERATED-Q5_K_M|ABLITERATED-Q6_K/i.test(f)) continue; // speculative drafts
-        let size = 0;
-        try { size = fs.statSync(path.join(full, f)).size; } catch {}
+        const filePath = path.join(full, f);
+        let stat;
+        try { stat = fs.statSync(filePath); } catch { continue; }
+        const memoKey = filePath.toLowerCase();
+        const cached = modelStatMemo.get(memoKey);
+        let fixed;
+        if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+          fixed = cached.fixed;
+        } else {
+          fixed = {
+            gb: Math.round((stat.size / 1073741824) * 100) / 100,
+            bytes: stat.size,
+            kind: detectKind(f),
+          };
+          modelStatMemo.set(memoKey, { mtimeMs: stat.mtimeMs, size: stat.size, fixed });
+        }
         out.push({
-          root, dir, file: f, path: path.join(full, f),
+          root, dir, file: f, path: filePath,
           mmproj: mmproj ? path.join(full, mmproj) : null,
-          gb: Math.round((size / 1073741824) * 100) / 100,
-          bytes: size,
+          ...fixed,
           alias: slug(f),
-          kind: detectKind(f),
           visionCapable: !!mmproj,
         });
       }
@@ -87,6 +109,15 @@ function scanModels(folders, extraFolders) {
       if (!first.tagged) { first.alias = `${first.alias}-${first.dir}`; first.tagged = true; }
       m.alias = `${m.alias}-${m.dir}`;
     } else seen.set(m.alias, m);
+  }
+  // Same filenames in identically named folders on different roots also need
+  // distinct aliases. Keep existing aliases when they are already unique.
+  const aliases = new Set();
+  for (const m of out) {
+    if (aliases.has(m.alias)) {
+      m.alias += '-' + require('node:crypto').createHash('sha256').update(m.path).digest('hex').slice(0, 8);
+    }
+    aliases.add(m.alias);
   }
   return { models: out, roots, scanErrors: errors.length ? errors : undefined };
 }
@@ -147,7 +178,7 @@ function roleArgs(registry, roleName, model, stateDir) {
     if ((args[i] === '--mmproj' || args[i] === '--chat-template-file') && !args[i + 1]) { i++; continue; }
     clean.push(args[i]);
   }
-  return { args: clean, gpu: String(ov.gpu || role.gpu || '0'), port: role.port, ctx };
+  return { args: clean, gpu: String(ov.gpu ?? role.gpu ?? '0'), port: role.port, ctx };
 }
 
 // Generic pool-model argv (any chat/vision/embed GGUF on any free port).

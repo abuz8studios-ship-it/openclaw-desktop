@@ -413,6 +413,36 @@ function checkHomeOwnership(repair) {
 }
 
 // ── runner ──────────────────────────────────────────────────────────────────
+// 2026-09-30: role ports moved (8011/8012/8021 -> 8111/8112/8121) and three places kept
+// the old numbers: the panel's own health probe (three live brains reported DOWN),
+// saved provider routes (pointed at dead ports) and the council scripts. None of it
+// announced itself. This check makes that class of drift visible: any local model port
+// referenced by the gateway config that is not a registry role or pool port.
+function checkRolePorts() {
+  const out = { id: 'role-ports', ok: true, severity: 'warn', detail: '', repaired: [], stale: [] };
+  try {
+    const base = readJson(path.join(INSTALL_ROOT, 'resources', 'models.registry.json')) || {};
+    const over = readJson(path.join(STATE_DIR, 'models.registry.json')) || {};
+    const roles = { ...(base.roles || {}) };
+    for (const [k, v] of Object.entries(over.roles || {})) roles[k] = { ...(roles[k] || {}), ...v };
+    const known = new Set([...((over.pool || base.pool || []).map(Number)), 8094, 8095, 8188, 8780, 8790]);
+    for (const r of Object.values(roles)) if (r && r.port) known.add(Number(r.port));
+    const scan = (file, re) => {
+      let t = '';
+      try { t = fs.readFileSync(file, 'utf8'); } catch { return; }
+      let m;
+      while ((m = re.exec(t))) { const p = Number(m[1]); if (p >= 8000 && p < 8200 && !known.has(p)) out.stale.push(path.basename(file) + ':' + p); }
+    };
+    scan(path.join(STATE_DIR, 'openclaw.json'), /https?:\/\/127\.0\.0\.1:(\d+)\/v1/g);
+    out.stale = [...new Set(out.stale)];
+    out.ok = out.stale.length === 0;
+    out.detail = out.ok
+      ? 'every local model port referenced by openclaw.json is a registry role or pool port'
+      : 'stale local port reference(s): ' + out.stale.join(', ') + ' - models.registry.json is the source of truth; repoint them';
+  } catch (e) { out.detail = 'role-port check could not run: ' + (e && e.message); }
+  return out;
+}
+
 function run(opts) {
   const repair = !opts || opts.repair !== false;
   const started = Date.now();
@@ -431,6 +461,7 @@ function run(opts) {
     checks.push(checkSingleStateTree());
     checks.push(checkConfig(repair));
     checks.push(checkWorkspaceBootstrap(repair));
+    checks.push(checkRolePorts());
   }
 
   const repaired = checks.reduce((acc, c) => acc.concat(c.repaired || []), []);

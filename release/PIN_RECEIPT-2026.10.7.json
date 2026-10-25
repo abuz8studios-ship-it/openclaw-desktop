@@ -1,0 +1,10 @@
+{
+  "product": "ABUZ8-OPC-1",
+  "upstream": "2026.10.7",
+  "at": "2026-10-25T02:25:20Z",
+  "previousPin": "2026.10.5",
+  "nodeRuntime": "v24.22.1 (ABI 137, swapped from v24.21.0; previous runtime kept beside it)",
+  "calendar": "opc1-side-calendar.js sidecar restored (desktop/control-ui/; re-apply after overlay via apply-side-calendar.cjs)",
+  "verification": "gateway HTTP 200 on 2026.10.7, doctor --fix clean, sidebar calendar rendered with per-day session dots",
+  "note": "Overlay source sync only. No new binaries; release/manifest.json still describes the shipped 1.2.2 assets."
+}

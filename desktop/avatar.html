@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OPC-1 realtime avatar</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% 15%, #203463, #080b15 65%); color: #eaf1ff; }
+    main { width: min(1100px, 100%); margin: auto; padding: 18px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; }
+    section { border: 1px solid #2c3e69; border-radius: 18px; background: #0d1424cc; box-shadow: 0 18px 60px #0008; overflow: hidden; }
+    #stage { min-height: 620px; position: relative; } canvas { display:block; width:100%; height:100%; min-height:620px; }
+    .badge { position:absolute; top:14px; left:16px; padding:7px 10px; border-radius:999px; background:#16294f; color:#94d6ff; font-size:12px; letter-spacing:.08em; text-transform:uppercase; }
+    .panel { padding: 22px; display:flex; flex-direction:column; gap:14px; }
+    h1 { margin:0; font-size:23px; } p { color:#aab9d7; line-height:1.45; margin:0; }
+    textarea { width:100%; min-height:110px; resize:vertical; border:1px solid #344b7d; border-radius:12px; padding:12px; background:#080d1a; color:#fff; font:inherit; }
+    button { border:1px solid #4b73bf; border-radius:10px; padding:11px 14px; color:#fff; background:#1a3f7d; cursor:pointer; font-weight:650; }
+    button.secondary { background:#172239; border-color:#3a4b70; } button:disabled { opacity:.5; cursor:wait; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; } .status { color:#7bd9a2; font-size:13px; min-height:20px; }
+    .reply { white-space:pre-wrap; color:#d8e4ff; background:#0a1020; border-radius:12px; padding:13px; min-height:90px; }
+    small { color:#8190ad; }
+    @media (max-width: 820px) { main { grid-template-columns:1fr; } #stage, canvas { min-height:430px; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import React, { useEffect, useRef, useState } from 'https://esm.sh/react@18.3.1';
+    import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client';
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+    const BRAIN = 'http://127.0.0.1:8111/v1';
+    const VOICE = 'http://127.0.0.1:8094/v1';
+
+    function Avatar({ speaking, analyser }) {
+      const mount = useRef(null);
+      const mouth = useRef(null);
+      const analyserData = useRef(new Uint8Array(128));
+      useEffect(() => {
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x080b15, 5, 13);
+        const camera = new THREE.PerspectiveCamera(34, 1, .1, 100); camera.position.set(0, .1, 6.6);
+        const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace; mount.current.appendChild(renderer.domElement);
+        const hemi = new THREE.HemisphereLight(0x9fc8ff, 0x10152b, 2.4); scene.add(hemi);
+        const key = new THREE.DirectionalLight(0x8ad9ff, 3); key.position.set(-3, 4, 5); scene.add(key);
+        const rim = new THREE.PointLight(0x8b5cff, 20, 8); rim.position.set(3, 1, 2); scene.add(rim);
+        const avatar = new THREE.Group(); avatar.position.y = -.25; scene.add(avatar);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(1.45, 48, 32), new THREE.MeshStandardMaterial({color:0x4c7cff, roughness:.32, metalness:.18})); avatar.add(head);
+        const visor = new THREE.Mesh(new THREE.SphereGeometry(1.08, 40, 24, 0, Math.PI*2, .22, 1.12), new THREE.MeshPhysicalMaterial({color:0x071124, roughness:.12, metalness:.45, transmission:.12, transparent:true, opacity:.92})); visor.position.z=1.02; visor.scale.set(1.12,.68,.15); avatar.add(visor);
+        for (const x of [-.42,.42]) { const eye=new THREE.Mesh(new THREE.SphereGeometry(.13,20,16),new THREE.MeshBasicMaterial({color:0x9cecff})); eye.position.set(x,.13,1.18); avatar.add(eye); }
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(.28,.055,16,48),new THREE.MeshBasicMaterial({color:0x94e9ff})); ring.position.set(0,-.45,1.2); ring.rotation.x=.12; avatar.add(ring); mouth.current=ring;
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(.48,.62,.55,32),new THREE.MeshStandardMaterial({color:0x263b76,roughness:.5})); neck.position.y=-1.45; avatar.add(neck);
+        const resize=()=>{ const w=mount.current.clientWidth,h=mount.current.clientHeight; camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h,false); }; resize(); addEventListener('resize',resize);
+        let raf; const tick=()=>{ raf=requestAnimationFrame(tick); const t=performance.now()/1000; avatar.rotation.y=Math.sin(t*.45)*.08; avatar.position.y=-.25+Math.sin(t*1.2)*.025; let level=0; if(analyser){ analyser.getByteTimeDomainData(analyserData.current); for(const v of analyserData.current) level+=Math.abs(v-128)/128; level/=analyserData.current.length; } const open=speaking ? Math.min(.7,level*5+.06) : 0; if(mouth.current) mouth.current.scale.set(1,1+open*1.8,1); renderer.render(scene,camera); }; tick();
+        return ()=>{ cancelAnimationFrame(raf); removeEventListener('resize',resize); renderer.dispose(); mount.current?.removeChild(renderer.domElement); };
+      }, [speaking, analyser]);
+      return React.createElement('div',{ref:mount,style:{width:'100%',height:'100%'}});
+    }
+
+    function App(){
+      const [text,setText]=useState(''); const [reply,setReply]=useState(''); const [status,setStatus]=useState('Ready'); const [speaking,setSpeaking]=useState(false); const [recording,setRecording]=useState(false);
+      const audioRef=useRef(null), analyserRef=useRef(null), nextAt=useRef(0), pending=useRef(0), recorder=useRef(null), chunks=useRef([]);
+      const say=async(value)=>{ if(!value.trim())return; setStatus('Thinking locally…'); setReply(''); let answer=''; try{ const r=await fetch(BRAIN+'/chat/completions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'Ornith-1.5-35B-A3B-Q4_K_M',messages:[{role:'user',content:value}],max_tokens:192,temperature:.35,stream:false,chat_template_kwargs:{enable_thinking:false}})}); const j=await r.json(); answer=j.choices?.[0]?.message?.content||j.choices?.[0]?.message?.reasoning_content||'No answer returned.'; setReply(answer); setStatus('Speaking…'); await speak(answer); setStatus('Ready'); }catch(e){setStatus('Error: '+e.message);} };
+      const speak=async(value)=>{ if(!audioRef.current) audioRef.current=new (window.AudioContext||window.webkitAudioContext)(); const ctx=audioRef.current; await ctx.resume(); if(!analyserRef.current){analyserRef.current=ctx.createAnalyser(); analyserRef.current.fftSize=256; analyserRef.current.connect(ctx.destination);} const r=await fetch(VOICE+'/audio/speech/stream',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'kokoro-82m',input:value,voice:'am_michael',speed:1})}); if(!r.ok)throw new Error('voice '+r.status); const reader=r.body.getReader(),decoder=new TextDecoder(); let buffer=''; nextAt.current=Math.max(nextAt.current,ctx.currentTime+.03); setSpeaking(true); const play=async(obj)=>{ const raw=atob(obj.audio_b64),bytes=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i); const audio=await ctx.decodeAudioData(bytes.buffer); const src=ctx.createBufferSource(); src.buffer=audio; src.connect(analyserRef.current); pending.current++; src.onended=()=>{pending.current--; if(pending.current===0)setSpeaking(false)}; src.start(Math.max(nextAt.current,ctx.currentTime+.01)); nextAt.current=Math.max(nextAt.current,ctx.currentTime+.01)+audio.duration; }; while(true){const {value:part,done}=await reader.read(); if(done)break; buffer+=decoder.decode(part,{stream:true}); const events=buffer.split('\n\n'); buffer=events.pop(); for(const ev of events){const line=ev.split('\n').find(x=>x.startsWith('data: ')); if(!line)continue; const data=line.slice(6); if(data==='[DONE]')continue; try{const obj=JSON.parse(data); if(obj.audio_b64)await play(obj)}catch{}}} };
+      const startMic=async()=>{ if(recording){recorder.current?.stop();return;} const stream=await navigator.mediaDevices.getUserMedia({audio:true}); const r=new MediaRecorder(stream); chunks.current=[]; r.ondataavailable=e=>chunks.current.push(e.data); r.onstop=async()=>{stream.getTracks().forEach(t=>t.stop()); setRecording(false); setStatus('Transcribing locally…'); const fd=new FormData(); fd.append('file',new Blob(chunks.current,{type:r.mimeType}),'mic.webm'); try{const resp=await fetch(VOICE+'/audio/transcriptions',{method:'POST',body:fd}); const j=await resp.json(); setText(j.text||''); if(j.text)await say(j.text)}catch(e){setStatus('Mic error: '+e.message)}}; recorder.current=r; r.start(); setRecording(true); setStatus('Listening…'); };
+      return React.createElement('main',null,React.createElement('section',{id:'stage'},React.createElement('span',{className:'badge'},'OPC-1 · local realtime'),React.createElement(Avatar,{speaking,analyser:analyserRef.current})),React.createElement('section',{className:'panel'},React.createElement('h1',null,'Zait realtime avatar'),React.createElement('p',null,'Uses the existing local thinker, Parakeet ears, and Kokoro streaming voice. No LongCat weights required.'),React.createElement('textarea',{value:text,onChange:e=>setText(e.target.value),placeholder:'Say something to OPC-1…'}),React.createElement('div',{className:'row'},React.createElement('button',{onClick:()=>say(text),disabled:!text.trim()||speaking},'Send'),React.createElement('button',{className:'secondary',onClick:startMic},recording?'Stop listening':'Talk to OPC-1')),React.createElement('div',{className:'status'},status),React.createElement('div',{className:'reply'},reply||'Your local response will appear here.'),React.createElement('small',null,'Brain :8111 · Voice :8094 · loopback only')));
+    }
+    createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>

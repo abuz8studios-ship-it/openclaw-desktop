@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 // brain-discover.cjs — 2026-09-02 (Ahmad's rule: "if there is a brain anywhere on
-// the system they should both be able to automatically find it and bind to it").
+// the system they should be able to find it").
 //
 // Scans this machine for every OpenAI-compatible engine (llama.cpp, vLLM, LM Studio,
-// Ollama, FreeToken, LiteLLM, anything on the usual ports), records the live ones
-// in C:\Users\wirec\.openclaw-OPC-1\body\brains.json (mirror: E:\ABU\ops\brains.json), and binds BOTH bodies to them:
-//   • OpenClaw / OPC-1  → sovereign home openclaw.json  models.providers.auto-<port>
-//   • Hermes            → %LOCALAPPDATA%\hermes\config.yaml  (via hermes_brain_sync.py)
-// Dead auto-providers are removed again on the next scan, so no dead paths linger.
-// Nemotron :8001 stays primary for both; discovered brains are added as fallbacks.
+// Ollama, FreeToken, anything on the usual ports), records the live ones
+// in C:\Users\wirec\.openclaw-OPC-1\body\brains.json. Discovery is an inventory:
+// explicit provider routes and fallback choices remain in the canonical config.
+// The thinker role's port comes from the model registry.
 // Cloud brains: any provider in openclaw.json with an https baseUrl is probed for
 // /models and reported live/dead in brains.json (keys are never printed).
 
@@ -16,21 +14,35 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const https = require('node:https');
-const { spawn } = require('node:child_process');
 
 const os = require('node:os');
-const HOME = process.env.USERPROFILE || os.homedir();
 const ROOT = process.env.OPC1_HOME || path.join(os.homedir(), '.openclaw-OPC-1');
 const OPENCLAW = process.env.OPENCLAW_CONFIG_PATH || path.join(ROOT, 'home', 'openclaw.json');
 const REGISTRY = path.join(ROOT, 'body', 'brains.json');
-const REGISTRY_MIRROR = 'E:\\ABU\\ops\\brains.json'; // Hermes compat (best-effort)
-const HERMES_SYNC = 'E:\\ABU\\ops\\hermes_brain_sync.py';
-const HERMES_PY = path.join(process.env.LOCALAPPDATA || path.join(HOME, 'AppData', 'Local'), 'hermes', 'hermes-agent', 'venv', 'Scripts', 'python.exe');
-const PRIMARY_PORT = 8001;
+let ModelReg = null;
+try { ModelReg = require('./models-registry.cjs'); } catch {}
+function registryPrimaryPort() {
+  // Thinker role port wins (user binding); shipped default is the fallback.
+  try {
+    const home = JSON.parse(fs.readFileSync(path.join(ROOT, 'home', 'models.registry.json'), 'utf8'));
+    if (home.roles && home.roles.thinker && home.roles.thinker.port) return Number(home.roles.thinker.port);
+  } catch {}
+  try {
+    if (ModelReg) {
+      const reg = ModelReg.loadRegistry(ROOT, __dirname);
+      if (reg.roles && reg.roles.thinker && reg.roles.thinker.port) return Number(reg.roles.thinker.port);
+    }
+  } catch {}
+  return 8111; // 2026-09-30: thinker moved off 8011 (QadirOS owns it); registry is the real source
+}
+const PRIMARY_PORT = registryPrimaryPort();
 
-// Ports worth knocking on. Cheap: one HEAD-sized GET each, 1.5s timeout.
-const PORTS = [8001, 8000, 8002, 8003, 8004, 8005, 8008, 8010, 8011, 8012, 8013, 8014, 8015, 8020, 8080, 8081, 8090, 8100,
-  1234, 5000, 5001, 5118, 5120, 7860, 8888, 8899, 8900, 9000, 9001, 11434, 11435, 4000, 4141, 3000, 3001, 30000, 8780];
+// Ports worth knocking on: the FULL local-llama range (any model on any port —
+// nothing is invisible for living on an unlisted port) plus the usual suspects
+// for Ollama/LM Studio/vLLM/other services.
+const PORTS = [];
+for (let p = 8000; p <= 8030; p++) PORTS.push(p);
+PORTS.push(1234, 5000, 5001, 5118, 5120, 7860, 8888, 8899, 8900, 9000, 9001, 11434, 11435, 4141, 3000, 3001, 30000, 8780);
 
 function get(url, timeout = 1500, headers = {}) {
   return new Promise((resolve) => {
@@ -98,57 +110,12 @@ async function main() {
   for (const [name, p] of Object.entries(prov)) {
     if (!/^auto-\d+$/.test(name)) { const m = /127\.0\.0\.1:(\d+)|localhost:(\d+)/.exec(p.baseUrl || ''); if (m) handPorts.add(Number(m[1] || m[2])); }
   }
-  // Snapshot auto-providers BEFORE mutate. Rewriting openclaw.json on every
-  // scan invalidates the Control UI config hash (2026.9.1:
-  // "config changed since last load; re-run config.get and retry").
-  const autoSig = (obj) => JSON.stringify(
-    Object.keys(obj).filter((k) => obj[k] && /^auto-\d+$/.test(k)).sort().map((k) => ({
-      k, baseUrl: obj[k].baseUrl, ids: (obj[k].models || []).map((m) => m.id),
-    }))
-  );
-  const prevAuto = autoSig(prov);
-
-  // Drop stale auto providers, then add the live ones.
-  for (const name of Object.keys(prov)) {
-    // One-time heal (2026-09-18): pre-fix scans persisted `_auto: true` flags
-    // that the gateway validator rejects as unrecognized keys. The auto set is
-    // now keyed on the `auto-<port>` name alone, so the flag is dead weight.
-    if (prov[name] && prov[name]._auto) delete prov[name]._auto;
-    if (/^auto-\d+$/.test(name)) delete prov[name];
-  }
-  const d = cfg.agents = cfg.agents || {}; d.defaults = d.defaults || {}; d.defaults.model = d.defaults.model || {};
-  const fb = (d.defaults.model.fallbacks || []).filter((f) => !/^auto-\d+\//.test(f));
-  const bound = [];
-  for (const b of local) {
-    if (handPorts.has(b.port)) { bound.push({ ...b, boundAs: 'hand-configured' }); continue; }
-    const name = `auto-${b.port}`;
-    prov[name] = {
-      api: 'openai-completions',
-      apiKey: b.kind === 'ollama' ? 'ollama' : 'local',
-      baseUrl: b.baseUrl,
-      models: b.models.slice(0, 12).map((id) => ({ id, name: `${id} (auto :${b.port})`, contextWindow: b.contextWindow, maxTokens: 8192, input: ['text'] })),
-    };
-    if (b.port !== PRIMARY_PORT) fb.push(`${name}/${b.models[0]}`);
-    bound.push({ ...b, boundAs: name });
-  }
-  const nextAuto = autoSig(prov);
-  if (prevAuto !== nextAuto) {
-    d.defaults.model.fallbacks = fb;
-    fs.writeFileSync(OPENCLAW, JSON.stringify(cfg, null, 2));
-    console.log('brains: openclaw.json updated (auto-provider delta)');
-  } else {
-    console.log('brains: openclaw.json left untouched (no auto-provider delta)');
-  }
+  const bound = local.map((b) => ({ ...b, boundAs: handPorts.has(b.port) ? 'configured' : 'discovered' }));
 
   const registry = { scannedAt: new Date().toISOString(), primary: `http://127.0.0.1:${PRIMARY_PORT}/v1`, local: bound, cloud };
   fs.mkdirSync(path.dirname(REGISTRY), { recursive: true });
   fs.writeFileSync(REGISTRY, JSON.stringify(registry, null, 2));
-  try { fs.mkdirSync(path.dirname(REGISTRY_MIRROR), { recursive: true }); fs.writeFileSync(REGISTRY_MIRROR, JSON.stringify(registry, null, 2)); } catch {}
   console.log(`brains: ${bound.length} local, ${cloud.filter((c) => c.live).length}/${cloud.length} cloud live`);
 
-  // Hand the same registry to Hermes.
-  if (fs.existsSync(HERMES_SYNC) && fs.existsSync(HERMES_PY)) {
-    await new Promise((res) => { const c = spawn(HERMES_PY, [HERMES_SYNC], { windowsHide: true, stdio: 'inherit' }); c.on('exit', res); c.on('error', res); });
-  }
 }
 main().catch((e) => { console.error(e); process.exit(1); });
